@@ -1,74 +1,137 @@
-﻿using System.Net;
+﻿using MessageLibrary;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.Json;
 
 namespace Server
 {
     internal class Program
     {
-        const int port = 3737;
-        const string JOIN_CMD = "<join>";
-        const string LEAVE_CMD = "<leave>";
+        private const int maximumClients = 10;
 
-        static UdpClient server = new UdpClient(port);
-        static Dictionary<IPEndPoint, string> members = new Dictionary<IPEndPoint, string>();
+        private const int port = 3737;
 
-        private static async void SendFromUser(string text, IPEndPoint from, string messageAuthor)
+        private static UdpClient server = new UdpClient(port);
+
+        private static Dictionary<IPEndPoint, string> members = new Dictionary<IPEndPoint, string>();
+
+        private static async void SendFromUser(Message message)
         {
-            string message = $"{messageAuthor} - {text} : {DateTime.Now.ToShortTimeString()}";
-            byte[] data = Encoding.UTF8.GetBytes(message);
+            string messageJson = JsonSerializer.Serialize(message);
+            byte[] data = Encoding.UTF8.GetBytes(messageJson);
 
             foreach (IPEndPoint ip in members.Keys)
-                if (ip.Port != from.Port && ip.Address != from.Address)
+                if (ip.Port != message.FromPort && ip.Address != IPAddress.Parse(message.FromAddress))
                     await server.SendAsync(data, ip);
         }
 
-        private static async void SendToUser(string text, IPEndPoint to, string messageAuthor)
+        private static async void SendToUser(Message message)
         {
-            string message = $"{messageAuthor} - {text} : {DateTime.Now.ToShortTimeString()}";
-            byte[] data = Encoding.UTF8.GetBytes(message);
+            string messageJson = JsonSerializer.Serialize(message);
+            byte[] data = Encoding.UTF8.GetBytes(messageJson);
 
+            IPEndPoint to = new IPEndPoint(IPAddress.Parse(message.ToAddress), message.ToPort
+                ?? throw new ArgumentNullException());
             await server.SendAsync(data, to);
         }
 
         static void Main(string[] args)
         {
-
             while (true)
             {
                 IPEndPoint? clientIp = null;
 
                 byte[] data = server.Receive(ref clientIp);
-                string message = Encoding.UTF8.GetString(data);
+                string messageJson = Encoding.UTF8.GetString(data);
+                Message message = JsonSerializer.Deserialize<Message>(messageJson);
 
-                Console.WriteLine($"[{DateTime.Now.ToShortTimeString()}] - {message} | from {clientIp}");
+                if (!string.IsNullOrWhiteSpace(message.Text))
+                    Console.WriteLine($"[{DateTime.Now.ToShortTimeString()}] - {message.Text} | from {clientIp}");
+                else
+                    Console.WriteLine($"[{DateTime.Now.ToShortTimeString()}] - {message.Command} | from {clientIp}");
 
-                if (message.StartsWith(JOIN_CMD) && !members.ContainsKey(clientIp))
+                if (message.Command == Message.JOIN_CMD && !members.ContainsKey(clientIp))
                 {
-                    string userName = message[JOIN_CMD.Length..];
-                    if (members.Count < 10)
+                    if (members.Count < maximumClients)
                     {
-                        SendFromUser($"{userName} joined", clientIp, "Server");
-                        members.Add(clientIp, userName);
-                        Console.WriteLine($"[{DateTime.Now.ToShortTimeString()}] - {userName} joined");
+                        Message response = new Message
+                        {
+                            SenderName = "Server",
+                            Text = $"{message.SenderName} joined",
+                            FromAddress = clientIp.Address.ToString(),
+                            FromPort = message.FromPort
+                        };
+                        SendFromUser(response);
+
+                        members.Add(clientIp, message.SenderName);
+                        Console.WriteLine($"[{DateTime.Now.ToShortTimeString()}] - {message.SenderName} joined");
                     }
                     else
                     {
-                        Console.WriteLine($"[{DateTime.Now.ToShortTimeString()}] - {userName} cannot join, server is full");
-                        SendToUser("Server is full, you cannot join", clientIp, "Server");
+                        Message response = new Message
+                        {
+                            SenderName = "Server",
+                            Text = "Server is full, you cannot join",
+                            ToAddress = clientIp.Address.ToString(),
+                            ToPort = message.ToPort
+                        };
+                        SendToUser(response);
+
+                        Console.WriteLine(
+                            $"[{DateTime.Now.ToShortTimeString()}] - {message.SenderName} cannot join, server is full");
                     }
                 }
-                else if (message == LEAVE_CMD && members.ContainsKey(clientIp))
+                else if (message.Command == Message.LEAVE_CMD && members.ContainsKey(clientIp))
                 {
-                    string userName = members[clientIp];
-                    SendFromUser($"{userName} left", clientIp, "Server");
+                    Message response = new Message
+                    {
+                        SenderName = "Server",
+                        Text = $"{message.SenderName} left",
+                        FromAddress = clientIp.Address.ToString(),
+                        FromPort = clientIp.Port
+                    };
+                    SendFromUser(response);
+
                     members.Remove(clientIp);
-                    Console.WriteLine($"[{DateTime.Now.ToShortTimeString()}] - {userName} left");
+                    Console.WriteLine($"[{DateTime.Now.ToShortTimeString()}] - {message.SenderName} left");
                 }
                 else if (!members.ContainsKey(clientIp))
-                    SendToUser($"You cannot send messages unless you are registered", clientIp, "Server");
+                {
+                    Message response = new Message
+                    {
+                        SenderName = "Server",
+                        Text = "You cannot send messages unless you are registered",
+                        ToAddress = clientIp.Address.ToString(),
+                        ToPort= clientIp.Port
+                    };
+                    SendToUser(response);
+                }
+                else if (message.ReplyToMessage == null)
+                {
+                    Message response = new Message
+                    {
+                        SenderName = message.SenderName,
+                        Text = message.Text,
+                        FromAddress = clientIp.Address.ToString(),
+                        FromPort = clientIp.Port
+                    };
+                    SendFromUser(response);
+                }
                 else
-                    SendFromUser(message, clientIp, members[clientIp]);
+                {
+                    Message response = new Message
+                    {
+                        SenderName = message.SenderName,
+                        Text = message.Text,
+                        FromAddress = clientIp.Address.ToString(),
+                        FromPort = clientIp.Port,
+                        ToAddress = message.ToAddress.ToString(),
+                        ToPort = message.ToPort,
+                        ReplyToMessage = message.ReplyToMessage
+                    };
+                    SendToUser(response);
+                }
             }
         }
     }

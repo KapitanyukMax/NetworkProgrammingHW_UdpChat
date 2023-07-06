@@ -1,8 +1,10 @@
-﻿using System.Collections.Generic;
+﻿using MessageLibrary;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -11,10 +13,6 @@ namespace Client
 {
     internal class ViewModel
     {
-        private const string JOIN_CMD = "<join>";
-
-        private const string LEAVE_CMD = "<leave>";
-
         private UdpClient client = new UdpClient();
 
         private bool isListening = false;
@@ -25,12 +23,12 @@ namespace Client
 
         public string Port { get; set; } = "3737";
 
-        public string Message { get; set; } = "Lorem Ipsum!";
+        public string MessageText { get; set; } = "Lorem Ipsum!";
 
-        private ObservableCollection<string> messages { get; set; } =
-            new ObservableCollection<string>();
+        private ObservableCollection<Message> messages { get; set; } =
+            new ObservableCollection<Message>();
 
-        public IEnumerable<string> Messages => messages;
+        public IEnumerable<Message> Messages => messages;
 
         private RelayCommand? joinCommand;
 
@@ -47,45 +45,50 @@ namespace Client
         public ICommand LeaveCommand => leaveCommand ??=
             new RelayCommand(o => Leave());
 
-        private async void GetResponse()
-        {
-            UdpReceiveResult res =  await client.ReceiveAsync();
-            string message = Encoding.UTF8.GetString(res.Buffer);
-            messages.Add(message);
-        }
-
         private async void Listen()
         {
             while (isListening)
             {
                 UdpReceiveResult res = await client.ReceiveAsync();
-                string message = Encoding.UTF8.GetString(res.Buffer);
+                string messageJson = Encoding.UTF8.GetString(res.Buffer);
+                Message message = JsonSerializer.Deserialize<Message>(messageJson);
                 messages.Add(message);
             }
         }
 
-        private async void Send(string text)
+        private async void Send(Message message)
         {
             IPEndPoint serverIp = new IPEndPoint(IPAddress.Parse(Ip), int.Parse(Port));
-            byte[] data = Encoding.UTF8.GetBytes(text);
+            string messageJson = JsonSerializer.Serialize(message);
+            byte[] data = Encoding.UTF8.GetBytes(messageJson);
 
             await client.SendAsync(data, serverIp);
 
             if (!isListening)
-                GetResponse();
+            {
+                UdpReceiveResult result = await client.ReceiveAsync();
+                string responseJson = Encoding.UTF8.GetString(result.Buffer);
+                Message response = JsonSerializer.Deserialize<Message>(responseJson);
+                messages.Add(response);
+            }
         }
 
         private void SendMessage()
         {
-            if (Message.StartsWith(JOIN_CMD) || Message == LEAVE_CMD)
-                MessageBox.Show("You cannot send 'join' or 'leave' command messages");
-            else if (string.IsNullOrWhiteSpace(Message))
+            if (string.IsNullOrWhiteSpace(MessageText))
                 MessageBox.Show("You cannot send an empty message");
             else
-                Send(Message);
+            {
+                Message message = new Message
+                {
+                    SenderName = Name,
+                    Text = MessageText
+                };
+                Send(message);
+            }
         }
 
-        private async void Join()
+        private void Join()
         {
             if (isListening)
             {
@@ -100,7 +103,12 @@ namespace Client
             }
 
             isListening = true;
-            Send(JOIN_CMD + Name);
+            Message message = new Message
+            {
+                SenderName = Name,
+                Command = Message.JOIN_CMD
+            };
+            Send(message);
             Listen();
         }
 
@@ -112,8 +120,13 @@ namespace Client
                 return;
             }
 
+            Message message = new Message
+            {
+                SenderName = Name,
+                Command = Message.LEAVE_CMD
+            };
+            Send(message);
             isListening = false;
-            Send(LEAVE_CMD);
         }
     }
 }
