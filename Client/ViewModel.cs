@@ -3,15 +3,23 @@ using System.Collections.ObjectModel;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Input;
 
 namespace Client
 {
     internal class ViewModel
     {
+        private const string JOIN_CMD = "<join>";
+
+        private const string LEAVE_CMD = "<leave>";
+
         private UdpClient client = new UdpClient();
 
         private bool isListening = false;
+
+        public string Name { get; set; } = string.Empty;
 
         public string Ip { get; set; } = "127.0.0.1";
 
@@ -32,19 +40,18 @@ namespace Client
         private RelayCommand? sendMessageCommand;
 
         public ICommand SendMessageCommand => sendMessageCommand ??=
-            new RelayCommand(o => SendMessage(Message));
+            new RelayCommand(o => SendMessage());
 
         private RelayCommand? leaveCommand;
 
         public ICommand LeaveCommand => leaveCommand ??=
             new RelayCommand(o => Leave());
 
-        private async void SendMessage(string text)
+        private async void GetResponse()
         {
-            IPEndPoint serverIp = new IPEndPoint(IPAddress.Parse(Ip), int.Parse(Port));
-            byte[] data = Encoding.UTF8.GetBytes(text);
-
-            await client.SendAsync(data, serverIp);
+            UdpReceiveResult res =  await client.ReceiveAsync();
+            string message = Encoding.UTF8.GetString(res.Buffer);
+            messages.Add(message);
         }
 
         private async void Listen()
@@ -57,17 +64,56 @@ namespace Client
             }
         }
 
-        private void Join()
+        private async void Send(string text)
         {
-            SendMessage("<join>");
+            IPEndPoint serverIp = new IPEndPoint(IPAddress.Parse(Ip), int.Parse(Port));
+            byte[] data = Encoding.UTF8.GetBytes(text);
+
+            await client.SendAsync(data, serverIp);
+
+            if (!isListening)
+                GetResponse();
+        }
+
+        private void SendMessage()
+        {
+            if (Message.StartsWith(JOIN_CMD) || Message == LEAVE_CMD)
+                MessageBox.Show("You cannot send 'join' or 'leave' command messages");
+            else if (string.IsNullOrWhiteSpace(Message))
+                MessageBox.Show("You cannot send an empty message");
+            else
+                Send(Message);
+        }
+
+        private async void Join()
+        {
+            if (isListening)
+            {
+                MessageBox.Show("You have already joined");
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(Name))
+            {
+                MessageBox.Show("Enter a valid name to join");
+                return;
+            }
+
             isListening = true;
+            Send(JOIN_CMD + Name);
             Listen();
         }
 
         private void Leave()
         {
-            SendMessage("<leave>");
+            if (!isListening)
+            {
+                MessageBox.Show("You cannot leave unless you have joined");
+                return;
+            }
+
             isListening = false;
+            Send(LEAVE_CMD);
         }
     }
 }

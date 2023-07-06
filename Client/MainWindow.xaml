@@ -6,7 +6,7 @@
         xmlns:local="clr-namespace:Client"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=local:ViewModel}"
-        Title="MainWindow" Height="400" Width="320">
+        Title="Udp Chat" Height="400" Width="600">
     <DockPanel>
         <ToolBar DockPanel.Dock="Top">
             <Button Command="{Binding JoinCommand}">Join</Button>
@@ -15,9 +15,12 @@
             <TextBox MinWidth="100" Text="{Binding Ip}"></TextBox>
             <Label>Port:</Label>
             <TextBox MinWidth="50" Text="{Binding Port}"></TextBox>
+            <Label>Name:</Label>
+            <TextBox MinWidth="150" Text="{Binding Name}"></TextBox>
         </ToolBar>
-        <DockPanel Margin="10,0,10,10" DockPanel.Dock="Bottom">
-            <Button IsDefault="True" Margin="10,0,0,0" Padding="20,5" DockPanel.Dock="Right" Command="{Binding SendMessageCommand}">Send</Button>
+        <DockPanel DockPanel.Dock="Bottom" Margin="10,0,10,10">
+            <Button DockPanel.Dock="Right" IsDefault="True" Margin="10,0,0,0"
+                    Padding="20,5" Command="{Binding SendMessageCommand}">Send</Button>
             <TextBox VerticalContentAlignment="Center" Text="{Binding Message}"></TextBox>
         </DockPanel>
         <ListBox Margin="10" ItemsSource="{Binding Messages}"></ListBox>
