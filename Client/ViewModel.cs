@@ -30,6 +30,8 @@ namespace Client
 
         public IEnumerable<Message> Messages => messages;
 
+        public Message? SelectedMessage { get; set; }
+
         private RelayCommand? joinCommand;
 
         public ICommand JoinCommand => joinCommand ??=
@@ -39,6 +41,11 @@ namespace Client
 
         public ICommand SendMessageCommand => sendMessageCommand ??=
             new RelayCommand(o => SendMessage());
+
+        private RelayCommand? sendReplyCommand;
+
+        public ICommand SendReplyCommand => sendReplyCommand ??=
+            new RelayCommand(o => SendReply());
 
         private RelayCommand? leaveCommand;
 
@@ -88,28 +95,47 @@ namespace Client
             }
         }
 
+        private void SendReply()
+        {
+            if (SelectedMessage == null)
+                MessageBox.Show("Select a message to reply");
+            else if (SelectedMessage.SenderName == "<server>")
+                MessageBox.Show("Cannot reply to a server message");
+            else if (string.IsNullOrWhiteSpace(MessageText))
+                MessageBox.Show("You cannot send an empty message");
+            else
+            {
+                Message message = new Message
+                {
+                    SenderName = Name,
+                    Text = MessageText,
+                    ToAddress = SelectedMessage.FromAddress,
+                    ToPort = SelectedMessage.FromPort,
+                    ReplyToMessage = SelectedMessage
+                };
+                Send(message);
+            }
+        }
+
         private void Join()
         {
             if (isListening)
-            {
                 MessageBox.Show("You have already joined");
-                return;
-            }
-
-            if (string.IsNullOrWhiteSpace(Name))
-            {
+            else if (string.IsNullOrWhiteSpace(Name))
                 MessageBox.Show("Enter a valid name to join");
-                return;
-            }
-
-            isListening = true;
-            Message message = new Message
+            else if (Name == "<server>")
+                MessageBox.Show("Cannot name a user as server");
+            else
             {
-                SenderName = Name,
-                Command = Message.JOIN_CMD
-            };
-            Send(message);
-            Listen();
+                isListening = true;
+                Message message = new Message
+                {
+                    SenderName = Name,
+                    Command = Message.JOIN_CMD
+                };
+                Send(message);
+                Listen();
+            }
         }
 
         private void Leave()

@@ -21,8 +21,10 @@
         <DockPanel DockPanel.Dock="Bottom" Margin="10,0,10,10">
             <Button DockPanel.Dock="Right" IsDefault="True" Margin="10,0,0,0"
                     Padding="20,5" Command="{Binding SendMessageCommand}">Send</Button>
+            <Button DockPanel.Dock="Right" IsDefault="True" Margin="10,0,0,0"
+                    Padding="20,5" Command="{Binding SendReplyCommand}">Send private reply</Button>
             <TextBox VerticalContentAlignment="Center" Text="{Binding MessageText}"></TextBox>
         </DockPanel>
-        <ListBox Margin="10" ItemsSource="{Binding Messages}"></ListBox>
+        <ListBox Margin="10" ItemsSource="{Binding Messages}" SelectedItem="{Binding SelectedMessage}"></ListBox>
     </DockPanel>
 </Window>

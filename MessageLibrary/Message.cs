@@ -11,8 +11,6 @@ namespace MessageLibrary
 
         public const string MESSAGE_CMD = "<message>";
 
-        public const string SERVERMESSAGE_CMD = "<serverMessage>";
-
         public string SenderName { get; set; } = string.Empty;
 
         public DateTime SendingTime { get; set; } = DateTime.Now;

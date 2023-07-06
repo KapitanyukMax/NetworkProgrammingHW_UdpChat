@@ -57,7 +57,7 @@ namespace Server
                     {
                         Message response = new Message
                         {
-                            SenderName = "Server",
+                            SenderName = "<server>",
                             Text = $"{message.SenderName} joined",
                             FromAddress = clientIp.Address.ToString(),
                             FromPort = message.FromPort
@@ -71,7 +71,7 @@ namespace Server
                     {
                         Message response = new Message
                         {
-                            SenderName = "Server",
+                            SenderName = "<server>",
                             Text = "Server is full, you cannot join",
                             ToAddress = clientIp.Address.ToString(),
                             ToPort = message.ToPort
@@ -86,7 +86,7 @@ namespace Server
                 {
                     Message response = new Message
                     {
-                        SenderName = "Server",
+                        SenderName = "<server>",
                         Text = $"{message.SenderName} left",
                         FromAddress = clientIp.Address.ToString(),
                         FromPort = clientIp.Port
@@ -100,7 +100,7 @@ namespace Server
                 {
                     Message response = new Message
                     {
-                        SenderName = "Server",
+                        SenderName = "<server>",
                         Text = "You cannot send messages unless you are registered",
                         ToAddress = clientIp.Address.ToString(),
                         ToPort= clientIp.Port
